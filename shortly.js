@@ -2,6 +2,7 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
+var crypto = require('crypto');
 
 
 var db = require('./app/config');
@@ -76,6 +77,96 @@ function(req, res) {
 // Write your authentication routes here
 /************************************************************/
 
+
+////Signup//////
+app.get('/signup', 
+function(req, res) {
+  res.render('signup');
+});
+
+
+app.post('/signup', 
+function(req, res) {
+
+  new User({username: req.body.username}).fetch().then(function(found){
+  //check if username exists 
+    if(found){
+      //if so, return "user name taken page/view"
+      console.log('this user name is taken');
+      res.send(200, 'User name taken');
+    //if not, write username + obfuscated pw to db
+    } else {
+      var hashPass = crypto.createHash('sha1'); 
+      hashPass.update(req.body.password); 
+      hashPass = hashPass.digest('hex'); 
+
+      Users.create({
+        username: req.body.username,
+        password: hashPass
+      }).then(function(){
+        res.send(200, 'Successful user creation.');
+      });
+      //if so, create session id (helper function)
+      //redirect to "/"
+
+    }
+  });
+
+});
+
+/////Login/////
+app.get('/login', 
+function(req, res) {
+  //check session 
+    //if logged in, show message to log out
+
+  res.render('login');
+});
+
+app.post('/login', function (req, res){
+
+  ///obfuscate pw 
+  var hashPass = crypto.createHash('sha1'); 
+  hashPass.update(req.body.password); 
+  hashPass = hashPass.digest('hex'); 
+
+  new User({
+    username: req.body.username,
+    password: hashPass
+  }).fetch().then(function(found){
+    if(found){
+    //if so, create session id (helper function)
+    //redirect to "/"
+      console.log('The user was found');
+    } else {
+    //if not, return "user name/pw not found view"
+      console.log('The user was not found');
+    }
+  });
+
+}); 
+
+
+app.post('/logout', function (req, res){
+  destroySession(); 
+});
+
+
+var createSession = function () {
+  // write auth cookies
+};
+
+
+//this function will be called via click handler on 'logout' button from frontpage
+var destroySession = function () {
+  // destroy current cookies
+};
+
+var checkUser = function (req, res) {
+
+  //req.getCookies....
+
+}
 
 
 /************************************************************/
