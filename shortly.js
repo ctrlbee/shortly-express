@@ -3,6 +3,7 @@ var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
 var crypto = require('crypto');
+var cookieParser = require('cookie-parser'); 
 
 
 var db = require('./app/config');
@@ -14,6 +15,8 @@ var Click = require('./app/models/click');
 
 var app = express();
 
+app.use(cookieParser()); 
+
 app.set('views', __dirname + '/views');
 app.set('view engine', 'ejs');
 app.use(partials());
@@ -24,25 +27,23 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
 
-app.get('/', 
-function(req, res) {
+app.get('/', function(req, res) {
+  checkSession(req, res);
   res.render('index');
 });
 
-app.get('/create', 
-function(req, res) {
+app.get('/create', function(req, res) {
+  checkSession(req, res);
   res.render('index');
 });
 
-app.get('/links', 
-function(req, res) {
+app.get('/links', function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
   });
 });
 
-app.post('/links', 
-function(req, res) {
+app.post('/links', function(req, res) {
   var uri = req.body.url;
 
   if (!util.isValidUrl(uri)) {
@@ -115,10 +116,9 @@ function(req, res) {
 });
 
 /////Login/////
-app.get('/login', 
-function(req, res) {
-  //check session 
-    //if logged in, show message to log out
+app.get('/login', function (req, res) {
+  //if logged in, show message to log out
+  
 
   res.render('login');
 });
@@ -136,7 +136,10 @@ app.post('/login', function (req, res){
   }).fetch().then(function(found){
     if(found){
     //if so, create session id (helper function)
-    //redirect to "/"
+      createSession(res, req.body.username, function(){
+          res.send('cookie written'); 
+      }); 
+      //TODO: redirect to "/"
       console.log('The user was found');
     } else {
     //if not, return "user name/pw not found view"
@@ -147,26 +150,32 @@ app.post('/login', function (req, res){
 }); 
 
 
-app.post('/logout', function (req, res){
-  destroySession(); 
+app.get('/logout', function (req, res){
+  destroySession(res); 
 });
 
 
-var createSession = function () {
+var createSession = function (res, user, cb) {
   // write auth cookies
+  res.cookie('shortlyUser', user, {maxAge: 900000, httpOnly: true}); 
+  cb(); 
 };
 
 
 //this function will be called via click handler on 'logout' button from frontpage
-var destroySession = function () {
-  // destroy current cookies
+var destroySession = function (res) {
+  res.clearCookie('shortlyUser'); 
+  res.send("cookie cleared"); 
 };
 
-var checkUser = function (req, res) {
-
-  //req.getCookies....
-
-}
+var checkSession = function (req, res) {
+  if(req.cookies.shortlyUser){
+     return true; 
+  } else {
+    res.redirect(301, '/login');
+    return false; 
+  }
+};
 
 
 /************************************************************/
