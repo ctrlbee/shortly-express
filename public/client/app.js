@@ -3,7 +3,8 @@ window.Shortly = Backbone.View.extend({
 
   events: {
     'click li a.index':  'renderIndexView',
-    'click li a.create': 'renderCreateView'
+    'click li a.create': 'renderCreateView',
+    'click li a.logout': 'logout'
   },
 
   initialize: function(){
@@ -14,6 +15,21 @@ window.Shortly = Backbone.View.extend({
     this.router.on('route', this.updateNav, this);
 
     Backbone.history.start({ pushState: true });
+  },
+
+  logout: function(){
+    $.ajax({
+      method: 'POST',
+      url: '/logout',
+      data: '',
+      success: function(){  
+        window.location.replace("/auth/github"); 
+        console.log('logout successfully posted');
+      },
+      error: function(err){
+        console.log(err);
+      }
+    });
   },
 
   render: function(){

@@ -3,7 +3,9 @@ var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
 var crypto = require('crypto');
-var cookieParser = require('cookie-parser'); 
+var cookieParser = require('cookie-parser');
+var passport = require('passport'); 
+var oauth2GitHub = require('passport-github2').Strategy;
 
 
 var db = require('./app/config');
@@ -80,14 +82,12 @@ app.post('/links', function(req, res) {
 
 
 ////Signup//////
-app.get('/signup', 
-function(req, res) {
+app.get('/signup', function(req, res) {
   res.render('signup');
 });
 
 
-app.post('/signup', 
-function(req, res) {
+app.post('/signup', function(req, res) {
 
   new User({username: req.body.username}).fetch().then(function(found){
   //check if username exists 
@@ -100,12 +100,15 @@ function(req, res) {
       var hashPass = crypto.createHash('sha1'); 
       hashPass.update(req.body.password); 
       hashPass = hashPass.digest('hex'); 
+      
 
       Users.create({
         username: req.body.username,
         password: hashPass
-      }).then(function(){
-        res.send(200, 'Successful user creation.');
+      }).then(function(user){
+        createSession(res, user.username, function(){
+          res.redirect(301, '/');
+        })
       });
       //if so, create session id (helper function)
       //redirect to "/"
@@ -117,9 +120,6 @@ function(req, res) {
 
 /////Login/////
 app.get('/login', function (req, res) {
-  //if logged in, show message to log out
-  
-
   res.render('login');
 });
 
@@ -137,7 +137,7 @@ app.post('/login', function (req, res){
     if(found){
     //if so, create session id (helper function)
       createSession(res, req.body.username, function(){
-          res.send('cookie written'); 
+          res.redirect(301, '/'); 
       }); 
       //TODO: redirect to "/"
       console.log('The user was found');
@@ -150,7 +150,7 @@ app.post('/login', function (req, res){
 }); 
 
 
-app.get('/logout', function (req, res){
+app.post('/logout', function (req, res){
   destroySession(res); 
 });
 
@@ -165,17 +165,58 @@ var createSession = function (res, user, cb) {
 //this function will be called via click handler on 'logout' button from frontpage
 var destroySession = function (res) {
   res.clearCookie('shortlyUser'); 
-  res.send("cookie cleared"); 
+  //res.redirect(301, "/auth/github"); 
 };
 
 var checkSession = function (req, res) {
   if(req.cookies.shortlyUser){
      return true; 
   } else {
-    res.redirect(301, '/login');
+    res.redirect(301, '/auth/github');
     return false; 
   }
 };
+
+/////////////////////////////////////////////////////////
+////////////////////OAUTH///////////////////////////////
+///////////////////////////////////////////////////////
+
+app.use(passport.initialize());
+
+passport.serializeUser(function(user, done) {
+  console.log('Call to passport.serializeUser');
+  done(null, user);
+});
+
+passport.deserializeUser(function(obj, done) {
+  console.log('Call to passport.deserializeUser');
+  done(null, obj);
+});
+
+passport.use(new oauth2GitHub ({
+    clientID: 'c2b0f3659d1bbc666ad4',
+    clientSecret: '2f070a33c6d3d8dba6de346cfbfd1a79c3ad323f',
+    callbackURL: 'http://127.0.0.1:4568/auth/github/callback'
+    }, 
+    function(accessToken, refreshToken, profile, done){
+      //identify current user by comparing current profile with information in DB
+      //console.log(accessToken, refreshToken, profile); 
+
+      return done(null, profile); 
+    } 
+));
+
+app.get('/auth/github', passport.authenticate('github', {scope: 'user' })); 
+
+app.get('/auth/github/callback', passport.authenticate('github', {failureRedirect: '/login'}), function(req, res){
+  //add user to session cookie
+  console.log(req.user.username); 
+  createSession(res, req.user.username, function(){
+      res.redirect("/"); 
+  })
+});
+
+
 
 
 /************************************************************/
